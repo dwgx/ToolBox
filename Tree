@@ -1,0 +1,42 @@
+top/
+├── dwgx/
+│   ├── Client.py
+│   ├── Manager/
+│   │   ├── ConfigManager.py
+│   │   └── ModuleManager.py
+│   ├── Modules/
+│   │   ├── Example1.py
+│   │   ├── Example2.py
+│   │   ├── FileClassifierTool.py
+│   │   ├── Setting.py
+│   │   └── TranslationTool.py
+│   ├── utils/
+│   │   ├── IconImageUtils.py
+│   │   ├── loggerutils.py
+│   │   ├── SetApiKeyDialog.py
+│   │   └── Translationcore.py
+│   └── __init__.py
+├── resource/
+│   └── Icon/
+│       ├── bg/
+│       │   ├── bg1.png
+│       │   ├── bg2.png
+│       │   ├── DXLBG.png
+│       │   ├── DXLBG2.png
+│       │   ├── DXLBG3.png
+│       │   └── javaduke.png
+│       ├── dxl/
+│       │   ├── dxltx2.jpg
+│       │   ├── dxltx3.jpg
+│       │   ├── dxltx4.jpg
+│       │   ├── dxltx5.jpg
+│       │   └── dxlx.png
+│       ├── ico/
+│       │   ├── dxl.ico
+│       │   └── java.exe.ico
+│       └── other/
+│           ├── java.exe.png
+│           └── steve.png
+├── run/
+│   └── config.json
+└── __init__.py
