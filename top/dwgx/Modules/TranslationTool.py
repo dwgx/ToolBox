@@ -1,4 +1,4 @@
-# top.dwgx.Modules.TranslationTool
+
 
 import sys
 import threading
@@ -6,17 +6,17 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Timer
 import keyboard
 import pyperclip
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
     QWidget, QApplication, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QTextEdit, QPushButton, QLabel, QLineEdit, QComboBox, QSlider, QMessageBox
+    QTextEdit, QPushButton, QLabel, QLineEdit, QComboBox, QSlider, QMessageBox,
+    QGroupBox
 )
-from PyQt6.QtGui import QIcon
-
-from top.dwgx.Manager.ConfigManager import ConfigManager, ALLOWED_LANGUAGES
-from top.dwgx.utils.Translationcore import perform_translation
-from top.dwgx.utils.loggerutils import LogEmitter, setup_logger
-from top.dwgx.utils.SetApiKeyDialog import SetApiKeyDialog
+from PySide6.QtGui import QIcon, QFont
+from Manager.ConfigManager import ConfigManager, ALLOWED_LANGUAGES
+from utils.Translationcore import perform_translation
+from utils.loggerutils import LogEmitter, setup_logger
+from utils.SetApiKeyDialog import SetApiKeyDialog
 
 
 class TranslationTool(QWidget):
@@ -28,22 +28,6 @@ class TranslationTool(QWidget):
         self.log_emitter = LogEmitter()
         self.log_emitter.log_signal.connect(self.append_log)
         self.logger = setup_logger("TranslationTool", self.log_emitter)
-
-        # 初始化 UI
-        self.text_edit = None
-        self.translate_button1 = None
-        self.translate_button2 = None
-        self.log_edit = None
-        self.shortcut_input1 = None
-        self.set_shortcut_button1 = None
-        self.target_lang_combo1 = None
-        self.shortcut_input2 = None
-        self.set_shortcut_button2 = None
-        self.target_lang_combo2 = None
-        self.delay_label = None
-        self.delay_slider = None
-        self.current_delay_label = None
-
         self.init_ui()
         self.load_config()
         self.start_listening_thread()
@@ -54,7 +38,6 @@ class TranslationTool(QWidget):
             "WARNING": Qt.GlobalColor.yellow,
             "INFO": Qt.GlobalColor.green
         }.get(level, Qt.GlobalColor.white)
-
         self.log_edit.setTextColor(color)
         self.log_edit.append(message)
 
@@ -62,82 +45,117 @@ class TranslationTool(QWidget):
         self.setWindowTitle('Translation Tool')
         self.setWindowIcon(QIcon.fromTheme("applications-education-language"))
         self.resize(800, 800)
-
         main_layout = QVBoxLayout()
 
+
+        translation_group = QGroupBox("翻译输入")
+        translation_layout = QVBoxLayout()
+        translation_group.setLayout(translation_layout)
+
         self.text_edit = QTextEdit(self)
-        main_layout.addWidget(self.text_edit)
+        self.text_edit.setPlaceholderText("在此输入要翻译的文本...")
+        self.text_edit.setFont(QFont('Microsoft YaHei', 10))
+        translation_layout.addWidget(self.text_edit)
 
         button_layout = QHBoxLayout()
         self.translate_button1 = QPushButton("翻译1", self)
         self.translate_button1.setIcon(QIcon.fromTheme("media-playback-start"))
+        self.translate_button1.setToolTip("点击进行翻译1")
         self.translate_button1.clicked.connect(self.translate_text1)
         button_layout.addWidget(self.translate_button1)
 
         self.translate_button2 = QPushButton("翻译2", self)
         self.translate_button2.setIcon(QIcon.fromTheme("media-playback-start"))
+        self.translate_button2.setToolTip("点击进行翻译2")
         self.translate_button2.clicked.connect(self.translate_text2)
         button_layout.addWidget(self.translate_button2)
 
-        main_layout.addLayout(button_layout)
+        translation_layout.addLayout(button_layout)
+        main_layout.addWidget(translation_group)
+
+
+        log_group = QGroupBox("日志输出")
+        log_layout = QVBoxLayout()
+        log_group.setLayout(log_layout)
 
         self.log_edit = QTextEdit(self)
         self.log_edit.setReadOnly(True)
-        self.log_edit.setStyleSheet("background-color: black; color: white;")
-        main_layout.addWidget(self.log_edit)
+        self.log_edit.setStyleSheet("background-color: #2E2E2E; color: #FFFFFF;")
+        log_layout.addWidget(self.log_edit)
 
+        main_layout.addWidget(log_group)
+
+
+        shortcut_group = QGroupBox("快捷键设置")
         shortcut_layout = QGridLayout()
+        shortcut_group.setLayout(shortcut_layout)
+
+
         self.shortcut_input1 = QLineEdit(self)
-        self.shortcut_input1.setPlaceholderText("输入快捷键1 (例如: ctrl+alt+t)")
+        self.shortcut_input1.setPlaceholderText("例如: ctrl+alt+t")
         self.set_shortcut_button1 = QPushButton("设置快捷键1", self)
         self.set_shortcut_button1.setIcon(QIcon.fromTheme("document-save"))
+        self.set_shortcut_button1.setToolTip("点击设置快捷键1")
         self.set_shortcut_button1.clicked.connect(self.set_shortcut1)
         self.target_lang_combo1 = QComboBox(self)
         shortcut_layout.addWidget(QLabel("快捷键1:", self), 0, 0)
         shortcut_layout.addWidget(self.shortcut_input1, 0, 1)
         shortcut_layout.addWidget(self.set_shortcut_button1, 0, 2)
         shortcut_layout.addWidget(QLabel("目标语言1:", self), 1, 0)
-        shortcut_layout.addWidget(self.target_lang_combo1, 1, 1)
+        shortcut_layout.addWidget(self.target_lang_combo1, 1, 1, 1, 2)
+
+
+        self.target_lang_combo1.currentIndexChanged.connect(self.on_target_lang1_changed)
+
 
         self.shortcut_input2 = QLineEdit(self)
-        self.shortcut_input2.setPlaceholderText("输入快捷键2 (例如: ctrl+alt+y)")
+        self.shortcut_input2.setPlaceholderText("例如: ctrl+alt+y")
         self.set_shortcut_button2 = QPushButton("设置快捷键2", self)
         self.set_shortcut_button2.setIcon(QIcon.fromTheme("document-save"))
+        self.set_shortcut_button2.setToolTip("点击设置快捷键2")
         self.set_shortcut_button2.clicked.connect(self.set_shortcut2)
         self.target_lang_combo2 = QComboBox(self)
         shortcut_layout.addWidget(QLabel("快捷键2:", self), 2, 0)
         shortcut_layout.addWidget(self.shortcut_input2, 2, 1)
         shortcut_layout.addWidget(self.set_shortcut_button2, 2, 2)
         shortcut_layout.addWidget(QLabel("目标语言2:", self), 3, 0)
-        shortcut_layout.addWidget(self.target_lang_combo2, 3, 1)
+        shortcut_layout.addWidget(self.target_lang_combo2, 3, 1, 1, 2)
 
-        main_layout.addLayout(shortcut_layout)
 
-        self.target_lang_combo1.currentIndexChanged.connect(self.on_target_lang1_changed)
         self.target_lang_combo2.currentIndexChanged.connect(self.on_target_lang2_changed)
 
+        main_layout.addWidget(shortcut_group)
+
+
+        delay_group = QGroupBox("复制延迟设置")
         delay_layout = QHBoxLayout()
+        delay_group.setLayout(delay_layout)
+
         self.delay_label = QLabel("延迟 (毫秒):", self)
+        delay_layout.addWidget(self.delay_label)
+
         self.delay_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.delay_slider.setMinimum(0)
         self.delay_slider.setMaximum(1000)
-        self.delay_slider.setValue(self.config_manager.get("translation", "copy_delay_ms", 100))
         self.delay_slider.setTickInterval(100)
         self.delay_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.delay_slider.setToolTip("调整复制延迟时间")
         self.delay_slider.valueChanged.connect(self.update_delay_label)
-        self.current_delay_label = QLabel(f"{self.delay_slider.value()} ms", self)
-
-        delay_layout.addWidget(self.delay_label)
         delay_layout.addWidget(self.delay_slider)
-        delay_layout.addWidget(self.current_delay_label)
-        main_layout.addLayout(delay_layout)
 
-        self.setLayout(main_layout)
+        self.current_delay_label = QLabel(f"{self.delay_slider.value()} ms", self)
+        delay_layout.addWidget(self.current_delay_label)
+
+        main_layout.addWidget(delay_group)
+
 
         settings_button = QPushButton("设置 API 密钥", self)
         settings_button.setIcon(QIcon.fromTheme("document-print"))
+        settings_button.setToolTip("点击设置翻译 API 密钥")
         settings_button.clicked.connect(self.open_settings_dialog)
         main_layout.addWidget(settings_button)
+
+        self.setLayout(main_layout)
 
     def set_shortcut1(self):
         try:
@@ -235,7 +253,6 @@ class TranslationTool(QWidget):
         try:
             delay_ms = self.config_manager.get("translation", "copy_delay_ms", 100)
             delay = delay_ms / 1000.0
-
             if is_clipboard_ready() and keyboard.is_pressed("ctrl"):
                 keyboard.press_and_release('ctrl+a')
                 Timer(delay, lambda: keyboard.press_and_release('ctrl+c')).start()
@@ -298,15 +315,23 @@ class TranslationTool(QWidget):
 
         self.target_lang_combo1.clear()
         self.target_lang_combo2.clear()
+
         for lang_code, lang_name in ALLOWED_LANGUAGES.items():
             self.target_lang_combo1.addItem(lang_name, lang_code)
             self.target_lang_combo2.addItem(lang_name, lang_code)
 
+        self.target_lang_combo1.blockSignals(True)
+        self.target_lang_combo2.blockSignals(True)
         self.set_combobox_current_index(self.target_lang_combo1, target_lang1)
         self.set_combobox_current_index(self.target_lang_combo2, target_lang2)
+        self.target_lang_combo1.blockSignals(False)
+        self.target_lang_combo2.blockSignals(False)
 
         self.register_shortcut("shortcut1", self.translate_from_shortcut1)
         self.register_shortcut("shortcut2", self.translate_from_shortcut2)
+
+        self.logger.info(f"目标语言1加载为: {target_lang1}")
+        self.logger.info(f"目标语言2加载为: {target_lang2}")
 
     def register_shortcut(self, shortcut_key, action):
         if self.current_hotkeys[shortcut_key]:
@@ -330,16 +355,3 @@ class TranslationTool(QWidget):
     def start_listening_thread(self):
         listening_thread = threading.Thread(target=self.listen_for_hotkeys, daemon=True)
         listening_thread.start()
-
-
-def main():
-    try:
-        app = QApplication(sys.argv)
-        translation_tool = TranslationTool()
-        translation_tool.show()
-        sys.exit(app.exec())
-    except Exception as e:
-        print(f"main错误: {str(e)}")
-
-if __name__ == "__main__":
-    main()

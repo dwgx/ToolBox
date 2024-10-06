@@ -1,8 +1,8 @@
 # top/dwgx/Modules/Example1.py
 import sys
 
-from PyQt6.QtWidgets import QWidget, QPushButton, QVBoxLayout, QGridLayout, QScrollArea, QLabel, QApplication
-from PyQt6.QtGui import QIcon
+from PySide6.QtWidgets import QWidget, QPushButton, QVBoxLayout, QGridLayout, QScrollArea, QLabel, QApplication
+from PySide6.QtGui import QIcon
 from top.dwgx.utils.IconImageUtils import icon_image_utils
 
 class Example1(QWidget):

@@ -1,9 +1,10 @@
-#top.dwgx.utils.SetApiKeyDialog
 
-from PyQt6.QtWidgets import (
+
+from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QLineEdit,
     QDialogButtonBox, QMessageBox
 )
+from PySide6.QtCore import Qt
 
 
 class SetApiKeyDialog(QDialog):

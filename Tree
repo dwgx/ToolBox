@@ -1,42 +1,57 @@
-top/
-├── dwgx/
-│   ├── Client.py
-│   ├── Manager/
-│   │   ├── ConfigManager.py
-│   │   └── ModuleManager.py
-│   ├── Modules/
-│   │   ├── Example1.py
-│   │   ├── Example2.py
-│   │   ├── FileClassifierTool.py
-│   │   ├── Setting.py
-│   │   └── TranslationTool.py
-│   ├── utils/
-│   │   ├── IconImageUtils.py
-│   │   ├── loggerutils.py
-│   │   ├── SetApiKeyDialog.py
-│   │   └── Translationcore.py
-│   └── __init__.py
-├── resource/
-│   └── Icon/
-│       ├── bg/
-│       │   ├── bg1.png
-│       │   ├── bg2.png
-│       │   ├── DXLBG.png
-│       │   ├── DXLBG2.png
-│       │   ├── DXLBG3.png
-│       │   └── javaduke.png
-│       ├── dxl/
-│       │   ├── dxltx2.jpg
-│       │   ├── dxltx3.jpg
-│       │   ├── dxltx4.jpg
-│       │   ├── dxltx5.jpg
-│       │   └── dxlx.png
-│       ├── ico/
-│       │   ├── dxl.ico
-│       │   └── java.exe.ico
-│       └── other/
-│           ├── java.exe.png
-│           └── steve.png
+ToolBox/
+├── .venv/
+│   └── library根目录/
+├── out/
+├── programtool/
+│   ├── CodeCleaner.py
+│   ├── config.cfg
+│   ├── FileClassifierTool.py
+│   ├── LibUninstaller.py
+│   └── QRCGenerator.py
 ├── run/
 │   └── config.json
-└── __init__.py
+├── top/
+│   ├── dwgx/
+│   │   ├── Client.py
+│   │   ├── Manager/
+│   │   │   ├── ConfigManager.py
+│   │   │   └── ModuleManager.py
+│   │   ├── Modules/
+│   │   │   ├── FileClassifierTool.py
+│   │   │   ├── Setting.py
+│   │   │   ├── SystemTool.py
+│   │   │   ├── TranslationTool.py
+│   │   │   └── noplease/
+│   │   │       ├── Exmaple1.py
+│   │   │       └── Exmaple2.py
+│   │   └── utils/
+│   │       ├── IconImageUtils.py
+│   │       ├── loggerutils.py
+│   │       ├── SetApiKeyDialog.py
+│   │       └── Translationcore.py
+│   └── resource/
+│       └── Icons/
+│           ├── bg/
+│           │   ├── bg1.png
+│           │   ├── bg2.png
+│           │   ├── DXLBG.png
+│           │   ├── DXLBG2.png
+│           │   ├── DXLBG3.png
+│           │   └── javaduke.png
+│           ├── dxl/
+│           │   ├── dxltx2.jpg
+│           │   ├── dxltx3.jpg
+│           │   ├── dxltx4.jpg
+│           │   ├── dxltx5.jpg
+│           │   └── dxlx.png
+│           ├── ico/
+│           │   ├── dxl.ico
+│           │   ├── folder-open.png
+│           │   └── java.exe.ico
+│           ├── other/
+│           │   ├── java.exe.png
+│           │   └── steve.png
+│           ├── resources.qrc
+│           └── resources_rc.py
+├── .gitattributes
+└── README.md (假设存在此文件)

@@ -1,12 +1,12 @@
 # top/dwgx/Modules/Example2.py
 import sys
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSlider, QProgressBar, QTextEdit, QLineEdit, QComboBox,
     QCheckBox, QRadioButton, QGroupBox, QSpinBox, QDateEdit, QApplication
 )
-from PyQt6.QtCore import Qt
+from PySide6.QtCore import Qt
 
 class Example2(QWidget):
     def __init__(self):

@@ -1,7 +1,7 @@
 import subprocess
 import sys
 
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QCheckBox, QMessageBox, QLabel, \
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QCheckBox, QMessageBox, QLabel, \
     QScrollArea, QGridLayout, QGroupBox
 
 

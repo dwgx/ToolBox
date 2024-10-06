@@ -1,5 +1,3 @@
-# top.dwgx.Manager.ConfigManager.py
-
 import json
 import os
 from collections import defaultdict
@@ -23,6 +21,7 @@ ALLOWED_LANGUAGES = {
     "hi": "印地语",
     "fa": "波斯语",
 }
+
 
 class ConfigManager:
     def __init__(self, file_path='config.json'):
