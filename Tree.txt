@@ -1,0 +1,55 @@
+ToolBox/
+├── .venv/
+│   └── library根目录/
+├── out/
+├── programtool/
+│   ├── CodeCleaner.py
+│   ├── config.cfg
+│   ├── FileClassifierTool.py
+│   ├── LibUninstaller.py
+│   └── QRCGenerator.py
+├── run/
+│   └── config.json
+├── top/
+│   ├── dwgx/
+│   │   ├── Client.py
+│   │   ├── Manager/
+│   │   │   ├── ConfigManager.py
+│   │   │   └── ModuleManager.py
+│   │   ├── Modules/
+│   │   │   ├── FileClassifierTool.py
+│   │   │   ├── Setting.py
+│   │   │   ├── SystemTool.py
+│   │   │   ├── TranslationTool.py
+│   │   │   └── YuShengJun.py
+│   │   └── utils/
+│   │       ├── IconImageUtils.py
+│   │       ├── loggerUtils.py
+│   │       ├── SetApiKeyDialog.py
+│   │       └── Translationcore.py
+│   └── resource/
+│       └── Icons/
+│           ├── bg/
+│           │   ├── bg1.png
+│           │   ├── bg2.png
+│           │   ├── DXLBG.png
+│           │   ├── DXLBG2.png
+│           │   ├── DXLBG3.png
+│           │   └── javaduke.png
+│           ├── dxl/
+│           │   ├── dxltx2.jpg
+│           │   ├── dxltx3.jpg
+│           │   ├── dxltx4.jpg
+│           │   ├── dxltx5.jpg
+│           │   └── dxlx.png
+│           ├── ico/
+│           │   ├── dxl.ico
+│           │   ├── folder-open.png
+│           │   └── java.exe.ico
+│           ├── other/
+│           │   ├── java.exe.png
+│           │   ├── playing.gif
+│           │   └── steve.png
+│           ├── resources.qrc
+│           └── resources_rc.py
+└── README.md (假设存在此文件)

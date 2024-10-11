@@ -19,7 +19,7 @@ import re
 import shutil
 
 from Manager.ConfigManager import ConfigManager
-from utils.loggerutils import LogEmitter, setup_logger
+from utils.loggerUtils import LogEmitter, setup_logger
 from utils.IconImageUtils import icon_image_utils
 
 DNS_INFO = {

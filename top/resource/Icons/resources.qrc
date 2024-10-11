@@ -1,0 +1,21 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>resources.qrc</file>
+        <file>bg/bg1.png</file>
+        <file>bg/bg2.png</file>
+        <file>bg/DXLBG.png</file>
+        <file>bg/DXLBG2.png</file>
+        <file>bg/DXLBG3.png</file>
+        <file>bg/javaduke.png</file>
+        <file>dxl/dxltx2.jpg</file>
+        <file>dxl/dxltx3.jpg</file>
+        <file>dxl/dxltx4.jpg</file>
+        <file>dxl/dxltx5.jpg</file>
+        <file>dxl/dxlx.png</file>
+        <file>ico/dxl.ico</file>
+        <file>ico/folder-open.png</file>
+        <file>ico/java.exe.ico</file>
+        <file>other/java.exe.png</file>
+        <file>other/steve.png</file>
+    </qresource>
+</RCC>

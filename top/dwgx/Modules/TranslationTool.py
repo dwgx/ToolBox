@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QIcon, QFont
 from Manager.ConfigManager import ConfigManager, ALLOWED_LANGUAGES
 from utils.Translationcore import perform_translation
-from utils.loggerutils import LogEmitter, setup_logger
+from utils.loggerUtils import LogEmitter, setup_logger
 from utils.SetApiKeyDialog import SetApiKeyDialog
 
 
@@ -355,3 +355,15 @@ class TranslationTool(QWidget):
     def start_listening_thread(self):
         listening_thread = threading.Thread(target=self.listen_for_hotkeys, daemon=True)
         listening_thread.start()
+
+def main():
+    try:
+        app = QApplication(sys.argv)
+        translation_Tool = TranslationTool()
+        translation_Tool.show()
+        sys.exit(app.exec())
+    except Exception as e:
+        print(f"main错误: {str(e)}")
+
+if __name__ == "__main__":
+    main()
