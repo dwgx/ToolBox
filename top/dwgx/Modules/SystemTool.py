@@ -1,106 +1,199 @@
-
-
 import os
 import sys
+import platform
+import shutil
+import threading
 
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QIcon, QFont
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QPushButton, QTextEdit, QMessageBox,
-    QHBoxLayout, QListWidget, QListWidgetItem, QLabel, QApplication, QGroupBox,
-    QGridLayout, QDialog, QMenu
+    QHBoxLayout, QListWidget, QLabel, QApplication, QLineEdit
 )
-import subprocess
-import platform
 import logging
-import threading
-import time
-import re
-import shutil
 
 from Manager.ConfigManager import ConfigManager
 from utils.loggerUtils import LogEmitter, setup_logger
-from utils.IconImageUtils import icon_image_utils
-
-DNS_INFO = {
-    "8.8.8.8": ("Google DNS", "全球"),
-    "8.8.4.4": ("Google DNS", "全球"),
-    "1.1.1.1": ("Cloudflare DNS", "全球"),
-    "1.0.0.1": ("Cloudflare DNS", "全球"),
-    "9.9.9.9": ("Quad9 DNS", "全球"),
-    "149.112.112.112": ("Quad9 DNS", "全球"),
-    "208.67.222.222": ("OpenDNS", "全球"),
-    "208.67.220.220": ("OpenDNS", "全球"),
-    "8.26.56.26": ("Comodo Secure DNS", "全球"),
-    "8.20.247.20": ("Comodo Secure DNS", "全球"),
-    "4.2.2.2": ("Level3 DNS", "全球"),
-    "4.2.2.1": ("Level3 DNS", "全球"),
-    "208.67.222.123": ("OpenDNS Family Shield", "全球"),
-    "208.67.220.123": ("OpenDNS Family Shield", "全球"),
-    "114.114.114.114": ("中国电信 DNS", "中国"),
-    "223.5.5.5": ("阿里云 DNS", "中国"),
-    "223.6.6.6": ("阿里云 DNS", "中国"),
-    "180.76.76.76": ("百度 DNS", "中国"),
-    "119.29.29.29": ("DNSPod DNS", "中国"),
-    "182.254.116.116": ("腾讯 DNS", "中国"),
-    "119.28.28.28": ("腾讯 DNS", "中国"),
-    "140.207.198.241": ("中国移动 DNS", "中国"),
-    "210.140.92.20": ("NTT Communications", "日本"),
-}
+from utils.SystemCore import (
+    repair_network, reset_dns, release_and_renew_ip, reset_proxy, reset_winsock,
+    check_hosts_file, get_current_dns, scan_fastest_dns,
+    set_dns, DNS_INFO, is_admin
+)
 
 logger = setup_logger("SystemTool")
 
+class DNSScanWorker(QThread):
+    scan_completed = Signal(list, str)  # results, fastest_dns
+
+    def __init__(self, dns_list):
+        super().__init__()
+        self.dns_list = dns_list
+
+    def run(self):
+        try:
+            results, fastest_dns = scan_fastest_dns(self.dns_list)
+            self.scan_completed.emit(results, fastest_dns)
+        except Exception as e:
+            logger.error(f"DNS 扫描线程出错: {str(e)}")
+            self.scan_completed.emit([], "None")
+
+class SetDNSWorker(QThread):
+    set_completed = Signal(bool, str)  # success, message
+
+    def __init__(self, primary_dns, secondary_dns, is_primary=True):
+        super().__init__()
+        self.primary_dns = primary_dns
+        self.secondary_dns = secondary_dns
+        self.is_primary = is_primary
+
+    def run(self):
+        try:
+            success = set_dns(self.primary_dns, self.secondary_dns)
+            if success:
+                if self.is_primary:
+                    message = f"已将主 DNS 设置为: {self.primary_dns}"
+                else:
+                    message = f"已将副 DNS 设置为: {self.secondary_dns}"
+                self.set_completed.emit(True, message)
+            else:
+                if self.is_primary:
+                    message = f"设置主 DNS 失败: {self.primary_dns}"
+                else:
+                    message = f"设置副 DNS 失败: {self.secondary_dns}"
+                self.set_completed.emit(False, message)
+        except Exception as e:
+            if self.is_primary:
+                message = f"设置主 DNS 出现异常: {str(e)}"
+            else:
+                message = f"设置副 DNS 出现异常: {str(e)}"
+            self.set_completed.emit(False, message)
+
+class CleanupWorker(QThread):
+    cleanup_completed = Signal(int, list)  # deleted_count, failed_files
+
+    def __init__(self, temp_path):
+        super().__init__()
+        self.temp_path = temp_path
+
+    def run(self):
+        deleted_count = 0
+        failed_files = []
+        if not os.path.exists(self.temp_path):
+            logger.error(f"临时文件夹路径不存在: {self.temp_path}")
+            self.cleanup_completed.emit(deleted_count, failed_files)
+            return
+        try:
+            for root, dirs, files in os.walk(self.temp_path, topdown=False):
+                for name in files:
+                    file_path = os.path.join(root, name)
+                    try:
+                        os.remove(file_path)
+                        deleted_count += 1
+                        logger.info(f"已删除文件: {file_path}")
+                    except Exception as e:
+                        logger.error(f"无法删除文件 {file_path}: {str(e)}")
+                        failed_files.append(file_path)
+                for name in dirs:
+                    dir_path = os.path.join(root, name)
+                    try:
+                        shutil.rmtree(dir_path)
+                        deleted_count += 1
+                        logger.info(f"已删除文件夹: {dir_path}")
+                    except Exception as e:
+                        logger.error(f"无法删除文件夹 {dir_path}: {str(e)}")
+                        failed_files.append(dir_path)
+            self.cleanup_completed.emit(deleted_count, failed_files)
+        except Exception as e:
+            logger.error(f"清理临时文件时出错: {str(e)}")
+            self.cleanup_completed.emit(deleted_count, failed_files)
+
+class SystemWorker(QThread):
+    completed = Signal(bool, str)  # success, message
+
+    def __init__(self, func, success_msg, failure_msg):
+        super().__init__()
+        self.func = func
+        self.success_msg = success_msg
+        self.failure_msg = failure_msg
+
+    def run(self):
+        try:
+            result = self.func()
+            if result:
+                self.completed.emit(True, self.success_msg)
+            else:
+                self.completed.emit(False, self.failure_msg)
+        except Exception as e:
+            self.completed.emit(False, f"{self.failure_msg}: {str(e)}")
 
 class SystemTool(QWidget):
     def __init__(self):
         super().__init__()
         self.config_manager = ConfigManager()
         self.init_ui()
+        self.check_admin()
 
     def init_ui(self):
         self.setWindowTitle('专家系统维护工具')
         self.setGeometry(100, 100, 800, 600)
         main_layout = QVBoxLayout()
 
+        # 日志发射器
+        self.log_emitter = LogEmitter()
+        self.log_emitter.log_signal.connect(self.handle_log)
+
+        # 设置 logger 使用发射器
+        global logger
+        logger = setup_logger("SystemCore", log_emitter=self.log_emitter)
 
         tabs = QTabWidget()
         main_layout.addWidget(tabs)
 
-
+        # 网络修复标签页
         network_tab = QWidget()
         network_layout = QHBoxLayout()
         network_tab.setLayout(network_layout)
 
         self.repair_network_btn = QPushButton('修复网络问题', self)
         self.repair_network_btn.setIcon(QIcon.fromTheme("network-repair"))
-        self.repair_network_btn.clicked.connect(self.confirm_and_execute(self.repair_network))
+        self.repair_network_btn.clicked.connect(
+            lambda: self.confirm_and_execute(repair_network, "网络修复操作已完成。", "网络修复操作失败。")
+        )
         network_layout.addWidget(self.repair_network_btn)
 
         self.reset_dns_btn = QPushButton('重置 DNS', self)
         self.reset_dns_btn.setIcon(QIcon.fromTheme("network-dns-reset"))
-        self.reset_dns_btn.clicked.connect(self.confirm_and_execute(self.reset_dns))
+        self.reset_dns_btn.clicked.connect(
+            lambda: self.confirm_and_execute(reset_dns, "DNS 重置操作已完成。", "DNS 重置操作失败。")
+        )
         network_layout.addWidget(self.reset_dns_btn)
 
         self.release_renew_ip_btn = QPushButton('释放并刷新 IP 地址', self)
         self.release_renew_ip_btn.setIcon(QIcon.fromTheme("network-ip-refresh"))
-        self.release_renew_ip_btn.clicked.connect(self.confirm_and_execute(self.release_and_renew_ip))
+        self.release_renew_ip_btn.clicked.connect(
+            lambda: self.confirm_and_execute(release_and_renew_ip, "IP 地址释放并刷新操作已完成。", "IP 地址释放并刷新操作失败。")
+        )
         network_layout.addWidget(self.release_renew_ip_btn)
 
         tabs.addTab(network_tab, "网络修复")
 
-
+        # 系统修复标签页
         system_tab = QWidget()
         system_layout = QHBoxLayout()
         system_tab.setLayout(system_layout)
 
         self.reset_proxy_btn = QPushButton('关闭所有代理', self)
         self.reset_proxy_btn.setIcon(QIcon.fromTheme("network-proxy"))
-        self.reset_proxy_btn.clicked.connect(self.confirm_and_execute(self.reset_proxy))
+        self.reset_proxy_btn.clicked.connect(
+            lambda: self.confirm_and_execute(reset_proxy, "代理设置已重置。", "关闭代理设置失败。")
+        )
         system_layout.addWidget(self.reset_proxy_btn)
 
         self.reset_winsock_btn = QPushButton('重置 Winsock', self)
         self.reset_winsock_btn.setIcon(QIcon.fromTheme("network-winsock-reset"))
-        self.reset_winsock_btn.clicked.connect(self.confirm_and_execute(self.reset_winsock))
+        self.reset_winsock_btn.clicked.connect(
+            lambda: self.confirm_and_execute(reset_winsock, "Winsock 重置操作已完成。", "Winsock 重置操作失败。")
+        )
         system_layout.addWidget(self.reset_winsock_btn)
 
         self.check_hosts_btn = QPushButton('检测 HOSTS 文件', self)
@@ -110,19 +203,19 @@ class SystemTool(QWidget):
 
         tabs.addTab(system_tab, "系统修复")
 
-
+        # 临时文件清理标签页
         temp_cleanup_tab = QWidget()
         temp_cleanup_layout = QVBoxLayout()
         temp_cleanup_tab.setLayout(temp_cleanup_layout)
 
         self.cleanup_temp_btn = QPushButton('清理临时文件', self)
         self.cleanup_temp_btn.setIcon(QIcon.fromTheme("folder-cleanup"))
-        self.cleanup_temp_btn.clicked.connect(self.confirm_and_execute(self.cleanup_temp_files))
+        self.cleanup_temp_btn.clicked.connect(self.start_cleanup)
         temp_cleanup_layout.addWidget(self.cleanup_temp_btn)
 
         tabs.addTab(temp_cleanup_tab, "临时文件清理")
 
-
+        # DNS 管理标签页
         dns_tab = QWidget()
         dns_layout = QVBoxLayout()
         dns_tab.setLayout(dns_layout)
@@ -142,14 +235,37 @@ class SystemTool(QWidget):
         self.dns_list.itemDoubleClicked.connect(self.set_dns_via_double_click)
         dns_layout.addWidget(self.dns_list)
 
-        self.set_dns_btn = QPushButton('设置为当前 DNS', self)
-        self.set_dns_btn.setIcon(QIcon.fromTheme("network-dns-set"))
-        self.set_dns_btn.clicked.connect(self.set_selected_dns)
-        dns_layout.addWidget(self.set_dns_btn)
+        # 设置主 DNS
+        primary_dns_layout = QHBoxLayout()
+        self.primary_dns_input = QLineEdit()
+        self.primary_dns_input.setPlaceholderText("主 DNS")
+        primary_dns_layout.addWidget(QLabel("主 DNS:"))
+        primary_dns_layout.addWidget(self.primary_dns_input)
+
+        self.set_primary_dns_btn = QPushButton('设置主 DNS', self)
+        self.set_primary_dns_btn.setIcon(QIcon.fromTheme("network-dns-set"))
+        self.set_primary_dns_btn.clicked.connect(self.set_primary_dns)
+        primary_dns_layout.addWidget(self.set_primary_dns_btn)
+
+        dns_layout.addLayout(primary_dns_layout)
+
+        # 设置副 DNS
+        secondary_dns_layout = QHBoxLayout()
+        self.secondary_dns_input = QLineEdit()
+        self.secondary_dns_input.setPlaceholderText("副 DNS")
+        secondary_dns_layout.addWidget(QLabel("副 DNS:"))
+        secondary_dns_layout.addWidget(self.secondary_dns_input)
+
+        self.set_secondary_dns_btn = QPushButton('设置副 DNS', self)
+        self.set_secondary_dns_btn.setIcon(QIcon.fromTheme("network-dns-set"))
+        self.set_secondary_dns_btn.clicked.connect(self.set_secondary_dns)
+        secondary_dns_layout.addWidget(self.set_secondary_dns_btn)
+
+        dns_layout.addLayout(secondary_dns_layout)
 
         tabs.addTab(dns_tab, "DNS 管理")
 
-
+        # 状态日志
         self.status_text = QTextEdit()
         self.status_text.setReadOnly(True)
         self.status_text.setFont(QFont('Microsoft YaHei', 10))
@@ -158,300 +274,178 @@ class SystemTool(QWidget):
         self.setLayout(main_layout)
         self.update_current_dns()
 
-    def log(self, message):
-        self.status_text.append(message)
-        logger.info(message)
+    def handle_log(self, level, message):
+        self.status_text.append(f"{level}: {message}")
+        # 自动滚动到底部
+        self.status_text.verticalScrollBar().setValue(self.status_text.verticalScrollBar().maximum())
 
-    def execute_command(self, command):
-        try:
-            output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, text=True)
-            self.log(output.strip())
-            return True
-        except subprocess.CalledProcessError as e:
-            self.log(f"命令执行失败: {e.output.strip()}")
-            return False
-        except Exception as e:
-            self.log(f"命令执行出现异常: {str(e)}")
-            return False
-
-    def confirm_and_execute(self, func):
-        def wrapper():
-            reply = QMessageBox.question(
+    def check_admin(self):
+        if not is_admin():
+            QMessageBox.critical(
                 self,
-                '确认操作',
-                '你确定要执行此操作吗?\n注意：需要以管理员身份运行本程序。',
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
+                "权限不足",
+                "请以管理员身份运行本程序。",
+                QMessageBox.StandardButton.Ok
             )
-            if reply == QMessageBox.StandardButton.Yes:
-                func()
-        return wrapper
+            sys.exit(1)
 
-    def repair_network(self):
-        self.log("正在修复网络问题...")
-        if self.execute_command("netsh int ip reset"):
-            self.log("已成功重置 IP 协议栈。")
-        else:
-            self.log("重置 IP 协议栈失败。请以管理员身份运行本程序。")
-        if self.execute_command("netsh winsock reset"):
-            self.log("已成功重置 Winsock。")
-        else:
-            self.log("重置 Winsock 失败。请以管理员身份运行本程序。")
-        self.log("网络修复操作已完成。")
-        QMessageBox.information(self, "网络修复", "网络修复操作已完成。")
+    def confirm_and_execute(self, func, success_msg="操作已完成。", failure_msg="操作失败。"):
+        reply = QMessageBox.question(
+            self,
+            '确认操作',
+            '你确定要执行此操作吗?\n注意：需要以管理员身份运行本程序。',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            # 使用 SystemWorker 处理系统操作
+            self.system_worker = SystemWorker(func, success_msg, failure_msg)
+            self.system_worker.completed.connect(self.handle_system_operation)
+            self.system_worker.start()
 
-    def reset_dns(self):
-        self.log("正在重置 DNS...")
-        if self.execute_command("ipconfig /flushdns"):
-            self.log("已成功刷新 DNS 缓存。")
-        else:
-            self.log("刷新 DNS 缓存失败。")
-        self.log("DNS 重置操作已完成。")
-        QMessageBox.information(self, "DNS 重置", "DNS 重置操作已完成。")
-
-    def release_and_renew_ip(self):
-        self.log("正在释放并刷新 IP 地址...")
-        if self.execute_command("ipconfig /release") and self.execute_command("ipconfig /renew"):
-            self.log("已成功释放并刷新 IP 地址。")
-        else:
-            self.log("释放或刷新 IP 地址失败。请以管理员身份运行本程序。")
-        self.log("IP 地址释放并刷新操作已完成。")
-        QMessageBox.information(self, "IP 地址刷新", "IP 地址释放并刷新操作完成。")
-
-    def reset_proxy(self):
-        self.log("正在关闭所有代理设置...")
-        commands = [
-            'reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /f',
-            'reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer /f',
-            'reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f',
-            "netsh winhttp reset proxy"
-        ]
-        success = True
-        for cmd in commands:
-            if not self.execute_command(cmd):
-                success = False
+    def handle_system_operation(self, success, message):
         if success:
-            self.log("已成功关闭所有代理设置。")
-            QMessageBox.information(self, "代理设置", "代理设置已重置。")
+            self.log_emitter.log_signal.emit("INFO", message)
+            QMessageBox.information(self, "操作完成", message)
         else:
-            self.log("关闭代理设置失败。请以管理员身份运行本程序。")
-            QMessageBox.warning(self, "代理设置", "关闭代理设置失败。请以管理员身份运行本程序。")
-
-    def reset_winsock(self):
-        self.log("正在重置 Winsock...")
-        if self.execute_command("netsh winsock reset"):
-            self.log("已成功重置 Winsock。")
-        else:
-            self.log("重置 Winsock 失败。请以管理员身份运行本程序。")
-        self.log("Winsock 重置操作已完成。")
-        QMessageBox.information(self, "Winsock 重置", "Winsock 重置操作已完成。")
+            self.log_emitter.log_signal.emit("ERROR", message)
+            QMessageBox.critical(self, "操作失败", message)
 
     def check_hosts_file(self):
-        self.log("正在检测 HOSTS 文件...")
-        hosts_path = r"C:\Windows\System32\drivers\etc\hosts"
-        try:
-            with open(hosts_path, 'r') as f:
-                content = f.read()
-                suspicious_entries = []
-                for line in content.splitlines():
-                    if line.strip() and not line.startswith('#'):
-                        if 'localhost' not in line and '::1' not in line:
-                            suspicious_entries.append(line)
-                if suspicious_entries:
-                    self.log("检测到可疑的 HOSTS 条目：")
-                    for entry in suspicious_entries:
-                        self.log(entry)
-                    QMessageBox.warning(self, "HOSTS 文件检测", "检测到可疑的 HOSTS 条目，请检查日志。")
-                else:
-                    self.log("HOSTS 文件未发现异常。")
-                    QMessageBox.information(self, "HOSTS 文件检测", "HOSTS 文件未发现异常。")
-        except Exception as e:
-            self.log(f"读取 HOSTS 文件失败: {str(e)}")
-            QMessageBox.critical(self, "HOSTS 文件检测", f"读取 HOSTS 文件失败: {str(e)}")
-
-    def cleanup_temp_files(self):
-        self.log("正在清理临时文件...")
-        temp_path = os.environ.get('TEMP', None)
-        if temp_path and os.path.exists(temp_path):
-            try:
-                file_count = 0
-                for root, dirs, files in os.walk(temp_path):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        try:
-                            os.remove(file_path)
-                            file_count += 1
-                        except Exception as e:
-                            self.log(f"无法删除文件 {file_path}: {str(e)}")
-                    for dir in dirs:
-                        dir_path = os.path.join(root, dir)
-                        try:
-                            shutil.rmtree(dir_path)
-                            file_count += 1
-                        except Exception as e:
-                            self.log(f"无法删除文件夹 {dir_path}: {str(e)}")
-                self.log(f"临时文件清理完成，删除了 {file_count} 个文件和文件夹。")
-                QMessageBox.information(self, "清理完成", f"临时文件清理完成，删除了 {file_count} 个文件和文件夹。")
-            except Exception as e:
-                self.log(f"清理临时文件失败: {str(e)}")
-                QMessageBox.critical(self, "清理失败", f"清理临时文件失败: {str(e)}")
+        self.log_emitter.log_signal.emit("INFO", "正在检测 HOSTS 文件...")
+        result = check_hosts_file()
+        if result is None:
+            self.log_emitter.log_signal.emit("ERROR", "读取 HOSTS 文件失败。")
+            QMessageBox.critical(self, "HOSTS 文件检测", "读取 HOSTS 文件失败。")
+        elif result:
+            self.log_emitter.log_signal.emit("WARNING", "检测到可疑的 HOSTS 条目：")
+            for entry in result:
+                self.log_emitter.log_signal.emit("WARNING", entry)
+            QMessageBox.warning(self, "HOSTS 文件检测", "检测到可疑的 HOSTS 条目，请检查日志。")
         else:
-            self.log("无法找到临时文件夹路径。")
-            QMessageBox.warning(self, "清理失败", "无法找到临时文件夹路径。")
+            self.log_emitter.log_signal.emit("INFO", "HOSTS 文件未发现异常。")
+            QMessageBox.information(self, "HOSTS 文件检测", "HOSTS 文件未发现异常。")
 
     def update_current_dns(self):
-        try:
-            if platform.system() == "Windows":
-                command = "ipconfig /all"
-                output = subprocess.check_output(command, shell=True, text=True, stderr=subprocess.STDOUT)
-                dns_servers = re.findall(r"DNS Servers[ .]*?:\s*([^\n]+)", output)
-                if dns_servers:
-                    dns_list = dns_servers[0].split()
-                    current_dns = dns_list[0]
-                    current_secondary_dns = dns_list[1] if len(dns_list) > 1 else "未设置"
-                else:
-                    current_dns = "未设置"
-                    current_secondary_dns = "未设置"
-            else:
-                with open('/etc/resolv.conf', 'r') as f:
-                    dns_servers = [line.split()[1] for line in f if line.startswith('nameserver')]
-                current_dns = dns_servers[0] if dns_servers else "未设置"
-                current_secondary_dns = dns_servers[1] if len(dns_servers) > 1 else "未设置"
+        current_dns, current_secondary_dns = get_current_dns()
+        if current_dns:
             self.current_dns_label.setText(f"当前 DNS: {current_dns}")
+        else:
+            self.current_dns_label.setText("当前 DNS: 未检测")
+        if current_secondary_dns:
             self.current_secondary_dns_label.setText(f"当前次 DNS: {current_secondary_dns}")
-            self.log(f"当前 DNS 设置: {current_dns}")
-            self.log(f"当前次 DNS 设置: {current_secondary_dns}")
-        except Exception as e:
-            self.log(f"获取当前 DNS 设置失败: {str(e)}")
+        else:
+            self.current_secondary_dns_label.setText("当前次 DNS: 未检测")
 
     def scan_fastest_dns(self):
-        dns_list = self.config_manager.get("system_repair", "dns_servers", [])
+        self.log_emitter.log_signal.emit("INFO", "正在扫描最快的 DNS 服务器...")
+        dns_list = list(DNS_INFO.keys())
         if not dns_list:
             QMessageBox.warning(self, "未配置 DNS", "请在配置文件中添加 DNS 服务器。")
             return
-        self.log("正在扫描主 DNS 服务器速度...")
-        fastest_dns = None
-        fastest_time = float('inf')
-        results = []
+        self.dns_list.clear()
+        self.scan_dns_btn.setEnabled(False)
+        self.dns_scan_worker = DNSScanWorker(dns_list)
+        self.dns_scan_worker.scan_completed.connect(self.handle_scan_results)
+        self.dns_scan_worker.start()
 
-        def ping_dns(dns):
-            try:
-                start_time = time.time()
-                if platform.system() == "Windows":
-                    command = f"ping -n 1 -w 1000 {dns}"
-                else:
-                    command = f"ping -c 1 -W 1 {dns}"
-                subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, text=True)
-                end_time = time.time()
-                return dns, end_time - start_time
-            except subprocess.CalledProcessError:
-                return dns, float('inf')
-
-        threads = []
-        results_lock = threading.Lock()
-        for dns in dns_list:
-            thread = threading.Thread(target=lambda d=dns: self.add_ping_result(ping_dns(d), results, results_lock))
-            thread.start()
-            threads.append(thread)
-        for thread in threads:
-            thread.join()
-        for dns, response_time in results:
+    def handle_scan_results(self, results, fastest_dns):
+        self.dns_list.clear()
+        for dns, response_time in sorted(results, key=lambda x: x[1]):
             provider, region = DNS_INFO.get(dns, ("未知", "未知"))
-            self.log(f"主 DNS: {dns} ({provider}, {region})，响应时间: {response_time:.2f} 秒")
-            if response_time < fastest_time:
-                fastest_time = response_time
-                fastest_dns = dns
-        if fastest_dns:
-            self.log(f"最快的主 DNS 是: {fastest_dns} ({fastest_time:.2f} 秒)")
-            self.dns_list.clear()
-            for dns, response_time in sorted(results, key=lambda x: x[1]):
-                provider, region = DNS_INFO.get(dns, ("未知", "未知"))
-                self.dns_list.addItem(f"{dns} ({provider}, {region}) - {response_time:.2f} 秒")
+            time_display = f"{response_time:.2f} 秒" if response_time != float('inf') else "无响应"
+            self.dns_list.addItem(f"{dns} ({provider}, {region}) - {time_display}")
+        if fastest_dns and fastest_dns != "None":
+            self.log_emitter.log_signal.emit("INFO", f"扫描完成。最快的 DNS 是: {fastest_dns}")
+            QMessageBox.information(self, "DNS 扫描", f"扫描完成。最快的 DNS 是: {fastest_dns}")
         else:
-            self.log("未能找到可用的主 DNS 服务器。")
+            self.log_emitter.log_signal.emit("ERROR", "未能找到可用的 DNS 服务器。")
+            QMessageBox.warning(self, "DNS 扫描", "未能找到可用的 DNS 服务器。")
+        self.scan_dns_btn.setEnabled(True)
+        self.log_emitter.log_signal.emit("INFO", "DNS 扫描完成。")
+        self.update_current_dns()
 
-    def add_ping_result(self, result, results, lock):
-        with lock:
-            results.append(result)
-
-    def set_selected_dns(self):
-        selected_items = self.dns_list.selectedItems()
-        if not selected_items:
-            QMessageBox.warning(self, "未选择 DNS", "请选择一个 DNS 服务器来设置。")
+    def set_primary_dns(self):
+        primary_dns = self.primary_dns_input.text().strip()
+        if not primary_dns:
+            QMessageBox.warning(self, "未输入主 DNS", "请填写主 DNS 地址。")
             return
-        selected_dns = selected_items[0].text().split(" ")[0]
-        self.set_dns(selected_dns)
+        secondary_dns = self.secondary_dns_input.text().strip() or self.config_manager.get("system_repair", "secondary_dns", "114.114.114.114")
+        self.log_emitter.log_signal.emit("INFO", f"正在设置主 DNS: {primary_dns} 和副 DNS: {secondary_dns}")
+        self.set_dns_worker = SetDNSWorker(primary_dns, secondary_dns, is_primary=True)
+        self.set_dns_worker.set_completed.connect(self.handle_set_dns)
+        self.set_dns_worker.start()
+
+    def set_secondary_dns(self):
+        secondary_dns = self.secondary_dns_input.text().strip()
+        if not secondary_dns:
+            QMessageBox.warning(self, "未输入副 DNS", "请填写副 DNS 地址。")
+            return
+        primary_dns = self.primary_dns_input.text().strip()
+        if not primary_dns:
+            QMessageBox.warning(self, "未输入主 DNS", "请先设置主 DNS。")
+            return
+        self.log_emitter.log_signal.emit("INFO", f"正在设置副 DNS: {secondary_dns}")
+        self.set_dns_worker = SetDNSWorker(primary_dns, secondary_dns, is_primary=False)
+        self.set_dns_worker.set_completed.connect(self.handle_set_dns)
+        self.set_dns_worker.start()
+
+    def handle_set_dns(self, success, message):
+        if success:
+            self.log_emitter.log_signal.emit("INFO", message)
+            QMessageBox.information(self, "设置 DNS 成功", message)
+        else:
+            self.log_emitter.log_signal.emit("ERROR", message)
+            QMessageBox.critical(self, "设置 DNS 失败", message)
+        self.update_current_dns()
 
     def set_dns_via_double_click(self, item):
         selected_dns = item.text().split(" ")[0]
-        self.log(f"双击设置 DNS: {selected_dns}")
-        self.set_dns(selected_dns)
+        if not self.primary_dns_input.text().strip():
+            self.primary_dns_input.setText(selected_dns)
+            self.log_emitter.log_signal.emit("INFO", f"双击选择主 DNS: {selected_dns}")
+        elif not self.secondary_dns_input.text().strip():
+            self.secondary_dns_input.setText(selected_dns)
+            self.log_emitter.log_signal.emit("INFO", f"双击选择副 DNS: {selected_dns}")
+        else:
+            QMessageBox.warning(self, "DNS 已设置", "主 DNS 和副 DNS 均已设置。")
 
-    def set_dns(self, selected_dns):
-        secondary_dns = self.config_manager.get("system_repair", "secondary_dns", "114.114.114.114")
-        fallback_secondary_dns = self.config_manager.get("system_repair", "fallback_secondary_dns", "8.8.8.8")
-        try:
-            if platform.system() == "Windows":
-                interface_name = self.get_active_interface()
-                if not interface_name:
-                    self.log("未找到活动的网络接口。")
-                    QMessageBox.critical(self, "设置 DNS 失败", "未找到活动的网络接口。")
-                    return
-                primary_command = f'netsh interface ip set dns name="{interface_name}" static {selected_dns} primary'
-                if self.execute_command(primary_command):
-                    self.log(f"已将主 DNS 设置为: {selected_dns}")
-                else:
-                    self.log(f"设置主 DNS 失败: {selected_dns}")
-                    QMessageBox.critical(self, "设置 DNS 失败", f"设置主 DNS 失败: {selected_dns}")
-                    return
-                secondary_command = f'netsh interface ip add dns name="{interface_name}" addr={secondary_dns} index=2'
-                if self.execute_command(secondary_command):
-                    self.log(f"已将次 DNS 设置为: {secondary_dns}")
-                else:
-                    self.log(f"设置次 DNS 失败: {secondary_dns}，尝试设置备用次 DNS: {fallback_secondary_dns}")
-                    fallback_command = f'netsh interface ip add dns name="{interface_name}" addr={fallback_secondary_dns} index=2'
-                    if self.execute_command(fallback_command):
-                        self.log(f"已将备用次 DNS 设置为: {fallback_secondary_dns}")
-                        self.config_manager.set("system_repair", "secondary_dns", fallback_secondary_dns)
-                    else:
-                        self.log(f"设置备用次 DNS 失败: {fallback_secondary_dns}")
-                        QMessageBox.critical(self, "设置 DNS 失败", f"设置备用次 DNS 失败: {fallback_secondary_dns}")
-                        return
-                QMessageBox.information(self, "设置 DNS", f"已将 DNS 设置为:\n主 DNS: {selected_dns}\n次 DNS: {secondary_dns}")
-                self.update_current_dns()
-            else:
-                with open('/etc/resolv.conf', 'w') as f:
-                    f.write(f"nameserver {selected_dns}\n")
-                    f.write(f"nameserver {secondary_dns}\n")
-                self.log(f"已将 DNS 设置为: {selected_dns} 和 次 DNS: {secondary_dns}")
-                QMessageBox.information(self, "设置 DNS", f"已将 DNS 设置为: {selected_dns} 和 次 DNS: {secondary_dns}")
-                self.update_current_dns()
-        except Exception as e:
-            self.log(f"设置 DNS 失败: {str(e)}")
-            QMessageBox.critical(self, "设置 DNS 失败", f"设置 DNS 失败: {str(e)}")
+    def start_cleanup(self):
+        reply = QMessageBox.question(
+            self,
+            '确认操作',
+            '你确定要清理临时文件吗?\n注意：需要以管理员身份运行本程序。',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.cleanup_temp_btn.setEnabled(False)
+            self.status_text.append("正在清理临时文件...")
+            temp_path = os.environ.get('TEMP', None)
+            if not temp_path:
+                self.log_emitter.log_signal.emit("ERROR", "无法找到临时文件夹路径。")
+                QMessageBox.critical(self, "清理失败", "无法找到临时文件夹路径。")
+                self.cleanup_temp_btn.setEnabled(True)
+                return
+            self.cleanup_worker = CleanupWorker(temp_path)
+            self.cleanup_worker.cleanup_completed.connect(self.handle_cleanup_result)
+            self.cleanup_worker.start()
 
-    def get_active_interface(self):
-        try:
-            command = "netsh interface show interface"
-            output = subprocess.check_output(command, shell=True, text=True, stderr=subprocess.STDOUT)
-            for line in output.splitlines():
-                if "已连接" in line or "Connected" in line:
-                    match = re.search(r"(已连接|Connected)\s+(专用|Dedicated)\s+([^\s]+)", line)
-                    if match:
-                        interface_name = match.group(3)
-                        return interface_name
-                    else:
-                        parts = line.strip().split()
-                        if len(parts) >= 4:
-                            interface_name = parts[-1]
-                            return interface_name
-            return None
-        except subprocess.CalledProcessError as e:
-            self.log(f"获取活动网络接口失败: {e.output}")
-            return None
-        except Exception as e:
-            self.log(f"获取活动网络接口出现异常: {str(e)}")
-            return None
+    def handle_cleanup_result(self, deleted_count, failed_files):
+        self.cleanup_temp_btn.setEnabled(True)
+        if deleted_count > 0:
+            self.log_emitter.log_signal.emit("INFO", f"已成功清理 {deleted_count} 个文件和文件夹。")
+            QMessageBox.information(self, "清理完成", f"已成功清理 {deleted_count} 个文件和文件夹。")
+        else:
+            self.log_emitter.log_signal.emit("INFO", "没有需要清理的文件。")
+            QMessageBox.information(self, "清理完成", "没有需要清理的文件。")
+        if failed_files:
+            failed_message = "以下文件或文件夹无法删除（可能正在被使用）：\n" + "\n".join(failed_files)
+            self.log_emitter.log_signal.emit("ERROR", failed_message)
+            QMessageBox.warning(self, "清理部分失败", failed_message)
+        else:
+            self.log_emitter.log_signal.emit("INFO", "所有临时文件已成功清理。")
+        self.status_text.append("INFO: 临时文件清理完成。")
 
 def main():
     try:

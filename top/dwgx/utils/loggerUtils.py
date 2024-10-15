@@ -1,4 +1,4 @@
-# top/dwgx/utils/loggerutils.py
+# top/dwgx/utils/loggerUtils.py
 
 from PySide6.QtCore import QObject, Signal
 import logging
@@ -13,7 +13,7 @@ def setup_logger(name, log_emitter=None):
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
-    # 确保 logger 只有一个处理程序
+    # 避免重复添加处理程序
     if not logger.handlers:
         formatter = logging.Formatter(
             '%(asctime)s | %(name)-12s | %(levelname)-8s | %(message)s',
