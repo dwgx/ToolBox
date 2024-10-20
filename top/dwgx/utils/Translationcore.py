@@ -1,4 +1,4 @@
-
+# utils/Translationcore.py
 
 from tencentcloud.common import credential
 from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
@@ -57,16 +57,8 @@ def perform_translation(text, target_lang, config_manager, logger):
         logger.info(f"翻译成功: '{translation}'")
         return translation
     except TencentCloudSDKException as e:
-        return handle_translation_error(e, logger)
+        logger.error(f"翻译错误: {str(e)}")
+        return "翻译错误，请检查日志获取更多信息。"
     except Exception as e:
         logger.error(f"翻译错误: {str(e)}")
         return "翻译错误，请检查日志获取更多信息。"
-
-
-def handle_translation_error(e, logger):
-    logger.error(f"翻译错误: {str(e)}")
-    return "翻译错误，请检查日志获取更多信息。"
-
-
-def get_supported_languages():
-    return SUPPORTED_LANGUAGES.copy()

@@ -1,4 +1,4 @@
-
+# utils/SetApiKeyDialog.py
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QLineEdit,
@@ -21,7 +21,6 @@ class SetApiKeyDialog(QDialog):
 
         form_layout = QFormLayout()
         self.secret_id_input = QLineEdit()
-        self.secret_id_input.setEchoMode(QLineEdit.EchoMode.Normal)
         self.secret_id_input.setText(self.config_manager.get("translation", "SECRET_ID", ""))
         form_layout.addRow("SECRET_ID:", self.secret_id_input)
 
@@ -50,5 +49,4 @@ class SetApiKeyDialog(QDialog):
         self.config_manager.set("translation", "SECRET_ID", secret_id)
         self.config_manager.set("translation", "SECRET_KEY", secret_key)
         self.logger.info("API密钥已更新。")
-        self.logger.info("API密钥已通过设置界面更新。")
         self.accept()

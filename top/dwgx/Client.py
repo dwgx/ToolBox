@@ -1,19 +1,21 @@
 # main.py
 
 import logging
-import os
 import sys
-from pathlib import Path
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QIcon, QPixmap, QPalette, QBrush
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QPalette, QBrush
+from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QSplitter, QListWidget, QStackedWidget, QListWidgetItem, QMessageBox
+    QWidget, QVBoxLayout, QSplitter, QListWidget, QStackedWidget, QListWidgetItem
 )
-from Manager.ModuleManager import logger, ModuleManager
+
+from Manager.ConfigManager import ConfigManager
+from Manager.ModuleManager import ModuleManager
+from Manager.ModuleManager import logger
 from utils.IconImageUtils import icon_image_utils
 from utils.loggerUtils import LogEmitter, setup_logger
-from Manager.ConfigManager import ConfigManager
-import top.resource.Icons.resources_rc
+
 
 class MainPanel(QWidget):
     def __init__(self):
@@ -130,17 +132,27 @@ class CustomListWidget(QListWidget):
         super().mouseReleaseEvent(event)
 
 def main():
-    try:
-        app = QApplication(sys.argv)
-        log_emitter = LogEmitter()
-        logger = setup_logger("MainPanel", log_emitter)
-        main_window = MainPanel()
-        main_window.show()
-        logger.info("主窗口已显示")
-        sys.exit(app.exec())
-    except Exception as e:
-        logger.error(f"主程序出现错误: {e}", exc_info=True)
-        print(f"main错误: {str(e)}")
+    # 配置全局日志
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s | %(name)s | %(levelname)s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    logger = logging.getLogger("MainPanel")
+
+    app = QApplication(sys.argv)
+
+    # 设置全局日志记录（如果有 GUI 显示日志的需求）
+    # 这里假设您有一个 LogEmitter 和 setup_logger 来处理日志显示
+    log_emitter = LogEmitter()
+    setup_logger("MainPanel", log_emitter)
+
+    # 初始化并加载模块
+    main_window = MainPanel()
+    main_window.show()
+
+    logger.info("主窗口已显示")
+    sys.exit(app.exec())
 
 if __name__ == '__main__':
     main()

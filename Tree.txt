@@ -1,55 +1,65 @@
-ToolBox/
-├── .venv/
-│   └── library根目录/
-├── out/
-├── programtool/
-│   ├── CodeCleaner.py
-│   ├── config.cfg
-│   ├── FileClassifierTool.py
-│   ├── LibUninstaller.py
-│   └── QRCGenerator.py
-├── run/
-│   └── config.json
-├── top/
-│   ├── dwgx/
-│   │   ├── Client.py
-│   │   ├── Manager/
-│   │   │   ├── ConfigManager.py
-│   │   │   └── ModuleManager.py
-│   │   ├── Modules/
-│   │   │   ├── FileClassifierTool.py
-│   │   │   ├── Setting.py
-│   │   │   ├── SystemTool.py
-│   │   │   ├── TranslationTool.py
-│   │   │   └── YuShengJun.py
-│   │   └── utils/
-│   │       ├── IconImageUtils.py
-│   │       ├── loggerUtils.py
-│   │       ├── SetApiKeyDialog.py
-│   │       └── Translationcore.py
-│   └── resource/
-│       └── Icons/
-│           ├── bg/
-│           │   ├── bg1.png
-│           │   ├── bg2.png
-│           │   ├── DXLBG.png
-│           │   ├── DXLBG2.png
-│           │   ├── DXLBG3.png
-│           │   └── javaduke.png
-│           ├── dxl/
-│           │   ├── dxltx2.jpg
-│           │   ├── dxltx3.jpg
-│           │   ├── dxltx4.jpg
-│           │   ├── dxltx5.jpg
-│           │   └── dxlx.png
-│           ├── ico/
-│           │   ├── dxl.ico
-│           │   ├── folder-open.png
-│           │   └── java.exe.ico
-│           ├── other/
-│           │   ├── java.exe.png
-│           │   ├── playing.gif
-│           │   └── steve.png
-│           ├── resources.qrc
-│           └── resources_rc.py
-└── README.md (假设存在此文件)
+ToolBox
+└── top
+    ├── dwgx
+    │   ├── Client.py
+    │   ├── Manager
+    │   │   ├── ConfigManager.py
+    │   │   ├── ModuleManager.py
+    │   │   └── __pycache__
+    │   │       ├── ConfigManager.cpython-312.pyc
+    │   │       └── ModuleManager.cpython-312.pyc
+    │   ├── Modules
+    │   │   ├── FileClassifierTool.py
+    │   │   ├── Setting.py
+    │   │   ├── TranslationTool.py
+    │   │   ├── YuShengJun.py
+    │   │   ├── noplease
+    │   │   │   ├── Exmaple1.py
+    │   │   │   ├── Exmaple2.py
+    │   │   │   ├── SystemCore.py
+    │   │   │   ├── SystemTool.py
+    │   │   │   └── WiFiHacker.py
+    │   │   └── __pycache__
+    │   │       ├── FileClassifierTool.cpython-312.pyc
+    │   │       ├── Setting.cpython-312.pyc
+    │   │       ├── TranslationTool.cpython-312.pyc
+    │   │       └── YuShengJun.cpython-312.pyc
+    │   ├── utils
+    │   │   ├── IconImageUtils.py
+    │   │   ├── loggerUtils.py
+    │   │   ├── SetApiKeyDialog.py
+    │   │   ├── Translationcore.py
+    │   │   └── __pycache__
+    │   │       ├── IconImageUtils.cpython-312.pyc
+    │   │       ├── loggerUtils.cpython-312.pyc
+    │   │       ├── SetApiKeyDialog.cpython-312.pyc
+    │   │       └── Translationcore.cpython-312.pyc
+    │   └── __pycache__
+    │       └── Client.cpython-312.pyc
+    └── resource
+        └── Icons
+            ├── resources.qrc
+            ├── resources_rc.py
+            ├── bg
+            │   ├── bg1.png
+            │   ├── bg2.png
+            │   ├── DXLBG.png
+            │   ├── DXLBG2.png
+            │   ├── DXLBG3.png
+            │   └── javaduke.png
+            ├── dxl
+            │   ├── dxltx2.jpg
+            │   ├── dxltx3.jpg
+            │   ├── dxltx4.jpg
+            │   ├── dxltx5.jpg
+            │   └── dxlx.png
+            ├── ico
+            │   ├── dxl.ico
+            │   ├── folder-open.png
+            │   └── java.exe.ico
+            ├── other
+            │   ├── java.exe.png
+            │   ├── playing.gif
+            │   └── steve.png
+            └── __pycache__
+                └── resources_rc.cpython-312.pyc

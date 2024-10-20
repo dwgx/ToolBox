@@ -93,8 +93,9 @@ class Setting(QWidget):
             if main_panel:
                 icon_image_utils.update_background(main_panel, image_path, scaling_method)
                 self.config_manager.set("ui_settings", "background_image", image_path)
-                if show_message:
-                    QMessageBox.information(self, "成功", f"背景图片已更改为: {os.path.basename(image_path)}")
+                #if show_message:
+                #   QMessageBox.information(self, "成功", f"背景图片已更改为: {os.path.basename(image_path)}")
+                #不提示了
             else:
                 QMessageBox.critical(self, "错误", "无法找到主窗口实例。")
 
